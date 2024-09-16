@@ -1,4 +1,4 @@
-package http
+package rtsp
 
 import (
 	"bytes"
@@ -12,8 +12,7 @@ import (
 type version byte
 
 const (
-	HTTP1 version = iota
-	HTTP2
+	RTSP1 version = iota
 )
 
 type SniffHeader struct {
@@ -23,10 +22,8 @@ type SniffHeader struct {
 
 func (h *SniffHeader) Protocol() string {
 	switch h.version {
-	case HTTP1:
-		return "http1"
-	case HTTP2:
-		return "http2"
+	case RTSP1:
+		return "rtsp1"
 	default:
 		return "unknown"
 	}
@@ -37,12 +34,14 @@ func (h *SniffHeader) Domain() string {
 }
 
 var (
-	methods = [...]string{"get", "post", "head", "put", "delete", "options", "connect"}
+	methods = [...]string{
+		"options", "describe", "setup", "play", "pause", "teardown", "get_parameter", "set_parameter", "announce", "record",
+	}
 
-	errNotHTTPMethod = errors.New("not an HTTP method")
+	errNotRTSPMethod = errors.New("not an RTSP method")
 )
 
-func beginWithHTTPMethod(b []byte) error {
+func beginWithRTSPMethod(b []byte) error {
 	for _, m := range &methods {
 		if len(b) >= len(m) && strings.EqualFold(string(b[:len(m)]), m) {
 			return nil
@@ -53,16 +52,16 @@ func beginWithHTTPMethod(b []byte) error {
 		}
 	}
 
-	return errNotHTTPMethod
+	return errNotRTSPMethod
 }
 
-func SniffHTTP(b []byte) (*SniffHeader, error) {
-	if err := beginWithHTTPMethod(b); err != nil {
+func SniffRTSP(b []byte) (*SniffHeader, error) {
+	if err := beginWithRTSPMethod(b); err != nil {
 		return nil, err
 	}
 
 	sh := &SniffHeader{
-		version: HTTP1,
+		version: RTSP1,
 	}
 
 	headers := bytes.Split(b, []byte{'\n'})
@@ -78,7 +77,7 @@ func SniffHTTP(b []byte) (*SniffHeader, error) {
 		key := strings.ToLower(string(parts[0]))
 		if key == "host" {
 			rawHost := strings.ToLower(string(bytes.TrimSpace(parts[1])))
-			dest, err := ParseHost(rawHost, net.Port(80))
+			dest, err := ParseHost(rawHost, net.Port(554))
 			if err != nil {
 				return nil, err
 			}
